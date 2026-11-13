@@ -31,6 +31,7 @@ assumed.
 - **Live observability.** A bundled Grafana dashboard (Istio golden signals: traffic, latency, errors) is
   embedded in each test run and annotated at every fault event; the execution log streams live to the browser.
 - **Made for development and staging namespaces** — not for production.
+- **Red Hat certified.** The [Helm chart](https://github.com/openshift-helm-charts/charts/pull/3125) and the UBI-based [container image](https://catalog.redhat.com/en/software/container-stacks/detail/69cd46f81b5d2953b1b5d7d4#overview) both passed Red Hat's partner certification.
 
 ## Scenarios
 
