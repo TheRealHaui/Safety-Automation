@@ -1,0 +1,913 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": false,
+        "hide": false,
+        "iconColor": "rgba(255, 96, 96, 1)",
+        "name": "Custom Annotations",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(50, 172, 45, 1)",
+        "name": "Safety Automation: Test Run Started",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [
+            "Action:Test run started"
+          ],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(245, 54, 54, 1)",
+        "name": "Safety Automation: Test Run Ended",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [
+            "Action:Test run ended"
+          ],
+          "type": "dashboard"
+        },
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Istio inbound traffic metrics per workload. Supports both istio_request_duration_milliseconds and istio_request_duration_seconds automatically. Zero-fills absent series.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "links": [],
+  "liveNow": true,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100,
+      "panels": [],
+      "title": "Traffic",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "bfhsay9vjb2f4c"
+      },
+      "description": "Requests per second to the selected workload (all pods combined). Data may lag ~15s (or more) due to Prometheus scrape intervals. Shows 0 when no traffic exists.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "fixedColor": "#5794F2",
+            "mode": "fixed"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: Requests/sec",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: Requests/sec",
+          "refId": "B"
+        }
+      ],
+      "title": "Traffic (Requests/sec)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 101,
+      "panels": [],
+      "title": "HTTP Response Classes",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "bfhsay9vjb2f4c"
+      },
+      "description": "Request rate by HTTP response class. Always shows all 5 classes — zero when no traffic of that class exists. Data may lag ~15s (or more) due to Prometheus scrape intervals.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "1xx Informational"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FFFF00",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx Success"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#37872D",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3xx Redirection"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#1F60C4",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx Client Error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FA6400",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx Server Error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4162A",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"1..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: 1xx Informational",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"2..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: 2xx Success",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"3..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: 3xx Redirection",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"4..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: 4xx Client Error",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"5..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "Workload: 5xx Server Error",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"1..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: 1xx Informational",
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"2..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: 2xx Success",
+          "refId": "H"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"3..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: 3xx Redirection",
+          "refId": "I"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"4..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: 4xx Client Error",
+          "refId": "J"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"5..\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "K6 Client: 5xx Server Error",
+          "refId": "K"
+        }
+      ],
+      "title": "HTTP Response Classes",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "id": 102,
+      "panels": [],
+      "title": "Error Rate",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "bfhsay9vjb2f4c"
+      },
+      "description": "Percentage of requests resulting in 4xx or 5xx. Data may lag ~15s (or more) due to Prometheus scrape intervals. Shows 0 when no errors or no traffic exist.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "orange",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.05
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx Error Rate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#C4162A",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx Error Rate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FA6400",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Total Error Rate"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF0000",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"5..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "Workload: 5xx Error Rate",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"4..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "Workload: 4xx Error Rate",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\", response_code=~\"[45]..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "Workload: Total Error Rate",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"5..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "K6 Client: 5xx Error Rate",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"4..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "K6 Client: 4xx Error Rate",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\", response_code=~\"[45]..\"}[$__rate_interval]))\n  /\n  sum(irate(istio_requests_total{source_workload=~\"hoplon-k6-.*\", source_workload_namespace=\"$namespace\", reporter=\"source\"}[$__rate_interval]))\n) or vector(0)",
+          "legendFormat": "K6 Client: Total Error Rate",
+          "refId": "F"
+        }
+      ],
+      "title": "Error Rate (%)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 103,
+      "panels": [],
+      "title": "Latency — Workload/Pod perspective only",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "bfhsay9vjb2f4c"
+      },
+      "description": "Inbound request latency aggregated across all pods. Averaged over the auto-computed rate window (scales with the selected time range) — data may lag ~15s (or more) due to Prometheus scrape intervals. Shows 0 when no data exists.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Average"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#5794F2",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#FF9830",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p99"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#F2495C",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  sum(rate(istio_request_duration_milliseconds_sum{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n  / sum(rate(istio_request_duration_milliseconds_count{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n  / 1000\n)\nor\n(\n  sum(rate(istio_request_duration_seconds_sum{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n  / sum(rate(istio_request_duration_seconds_count{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval]))\n)\nor vector(0)",
+          "legendFormat": "Average",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  histogram_quantile(0.95,\n    sum(rate(istio_request_duration_milliseconds_bucket{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval])) by (le)\n  ) / 1000\n)\nor\n(\n  histogram_quantile(0.95,\n    sum(rate(istio_request_duration_seconds_bucket{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval])) by (le)\n  )\n)\nor vector(0)",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "bfhsay9vjb2f4c"
+          },
+          "expr": "(\n  histogram_quantile(0.99,\n    sum(rate(istio_request_duration_milliseconds_bucket{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval])) by (le)\n  ) / 1000\n)\nor\n(\n  histogram_quantile(0.99,\n    sum(rate(istio_request_duration_seconds_bucket{destination_workload=\"$workload\", destination_workload_namespace=\"$namespace\", reporter=\"destination\"}[$__rate_interval])) by (le)\n  )\n)\nor vector(0)",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "title": "Latency (Workload/Pod perspective only)",
+      "type": "timeseries"
+    }
+  ],
+  "preload": true,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": [
+    "istio",
+    "openshift",
+    "workload",
+    "Safety Automation"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "safety-automation-shopping-demo",
+          "value": "safety-automation-shopping-demo"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "bfhsay9vjb2f4c"
+        },
+        "definition": "label_values(istio_requests_total{reporter=\"destination\"}, destination_workload_namespace)",
+        "includeAll": false,
+        "label": "Namespace",
+        "name": "namespace",
+        "options": [],
+        "query": {
+          "query": "label_values(istio_requests_total{reporter=\"destination\"}, destination_workload_namespace)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": "",
+        "regexApplyTo": "value",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "checkout",
+          "value": "checkout"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "bfhsay9vjb2f4c"
+        },
+        "definition": "query_result(count by (destination_workload) (count_over_time(istio_requests_total{reporter=\"destination\", destination_workload_namespace=\"$namespace\"}[24h])))",
+        "includeAll": false,
+        "label": "Workload",
+        "name": "workload",
+        "options": [],
+        "query": {
+          "query": "query_result(count by (destination_workload) (count_over_time(istio_requests_total{reporter=\"destination\", destination_workload_namespace=\"$namespace\"}[24h])))",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 2,
+        "regex": ".*destination_workload=\"([^\"]+)\".*",
+        "regexApplyTo": "value",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Safety Automation Resilience Dashboard",
+  "uid": "istio-workload-overview-version-two",
+  "version": 18,
+  "weekStart": ""
+}

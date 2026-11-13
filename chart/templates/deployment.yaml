@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hoplon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hoplon.labels" . | nindent 4 }}
+spec:
+  # Single replica only — DynaCov Safety Automation holds in-memory test run state. A second replica
+  # would have no knowledge of runs started by the first. Not customer-configurable.
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "hoplon.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hoplon.selectorLabels" . | nindent 8 }}
+        # Required for pods in an Istio-enrolled namespace exposed via an OpenShift Route.
+        # Without this label the istio-expose-route NetworkPolicy silently drops router traffic.
+        maistra.io/expose-route: "true"
+      annotations:
+        # ── Automatic rolling restart on config change ──────────────────────────
+        # Kubernetes does NOT restart pods when a ConfigMap or Secret is updated.
+        # These checksums are computed from the rendered template content at helm upgrade
+        # time. When the content changes the hash changes, the pod spec changes, and
+        # Kubernetes triggers a rolling restart automatically — no manual oc rollout needed.
+        checksum/config:             {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret-credentials: {{ include (print $.Template.BasePath "/secret-credentials.yaml") . | sha256sum }}
+        {{- if .Values.oracle.localNaming.enabled }}
+        checksum/secret-local-naming: {{ include (print $.Template.BasePath "/secret-local-naming.yaml") . | sha256sum }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "hoplon.serviceAccountName" . }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        # Do NOT hardcode runAsUser — OpenShift assigns a namespace-specific UID
+        # range per project and rejects any UID outside that range under the
+        # restricted SCC. runAsNonRoot: true is sufficient to prevent root access;
+        # the exact UID is irrelevant to the Go binary.
+        runAsNonRoot: true
+        # Required by OpenShift's restricted PodSecurity policy and Red Hat
+        # Marketplace chart-verifier. seccompProfile restricts the syscalls the
+        # container may make to the set approved for the RuntimeDefault profile.
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            # Prevents the process from gaining additional privileges via setuid/setgid
+            # binaries. Required by the restricted PodSecurity policy.
+            allowPrivilegeEscalation: false
+            # Drops all Linux capabilities. The Go binary needs none of them.
+            # Required by the restricted PodSecurity policy.
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          envFrom:
+            # Injects every key from the ConfigMap as an env var (APP_PORT, K6_IMAGE, etc.).
+            - configMapRef:
+                name: {{ include "hoplon.fullname" . }}
+            # Injects every key from the credentials Secret (ORACLE_DSN, SESSION_SECRET, etc.).
+            - secretRef:
+                name: {{ include "hoplon.fullname" . }}-credentials
+          {{- if .Values.oracle.localNaming.enabled }}
+          volumeMounts:
+            # tnsnames.ora, sqlnet.ora (and wallet binary files for mTLS) mounted at TNS_ADMIN.
+            # The Oracle native C library reads these files at library load time — before main()
+            # runs. The path must match ENV TNS_ADMIN in the Dockerfile exactly, otherwise
+            # misleading ORA-12506 ACL errors appear.
+            - name: oracle-local-naming
+              mountPath: /opt/oracle/instantclient_23_26/network/admin
+              readOnly: true
+          {{- end }}
+          # readinessProbe — removes the pod from Service endpoints until it responds 200.
+          # Uses /readyz which performs a DB ping, so traffic is only routed to the pod
+          # when it can actually serve real requests. initialDelaySeconds: 10 gives the
+          # app time to open DB connections, run migrations, and finish all startup steps.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          # livenessProbe — restarts the container if it stops responding (e.g. deadlock).
+          # initialDelaySeconds: 30 is intentionally longer than the readiness delay to
+          # prevent Kubernetes from killing the pod during a slow-but-healthy startup.
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+      {{- if .Values.oracle.localNaming.enabled }}
+      volumes:
+        - name: oracle-local-naming
+          secret:
+            secretName: {{ include "hoplon.localNamingSecretName" . }}
+      {{- end }}

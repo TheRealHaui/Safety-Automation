@@ -1,0 +1,157 @@
+# Default values for the DynaCov Safety Automation Helm chart.
+# This file actually is the application contract offered to the customer.
+# The customer can override all values here with his own values on Helm
+# Chart installation or upgrade.
+# Override in your own values file:  helm upgrade --install dynacov-safety-automation oci://europe-west6-docker.pkg.dev/automation-safety-485518/dynacov-safety-automation-public/dynacov-safety-automation -f my-values.yaml
+# For local dev use:                 helm upgrade --install dynacov-safety-automation ./chart -f values.dev.yaml
+
+image:
+  # The Helm chart (.tgz) and the Docker image are two completely separate artifacts.
+  # The chart contains only Kubernetes templates and configuration — it does NOT bundle
+  # the application binary. The Docker image must be built and pushed to a registry by
+  # DynaCov independently of the chart. Kubernetes pulls it from there at pod start time.
+  #
+  # Current distribution registry (Google Artifact Registry):
+  #   europe-west6-docker.pkg.dev/automation-safety-485518/dynacov-safety-automation/container
+  # The Helm chart lives alongside it under dynacov-safety-automation-public/dynacov-safety-automation in the same GAR repository —
+  # different names prevent version tag collisions between chart and image.
+  # Future certified registry (Red Hat Partner Connect — pending certification):
+  #   registry.connect.redhat.com/dynacov/hoplon
+  # Developer note: if this URL is changed, update the $defaultRepo variable in
+  # chart/templates/validations.yaml to the same value — it is the anchor for
+  # the pull-secret enforcement check and must stay in sync.
+  repository: "europe-west6-docker.pkg.dev/automation-safety-485518/dynacov-safety-automation/container"
+  tag: "0.1.1"
+  pullPolicy: IfNotPresent
+
+  # Pull secret for the GAR registry. Create it from the license file/GCP Service Account JSON
+  # key file requested and received from DynaCov, Inc.:
+  # Note, "_json_key" of "docker-username=_json_key" is not an actual username.
+  # It's literally the string _json_key that tells GAR "the password field contains a
+  # JSON service account key". Has to get used always in exactly that way.
+  # Note, "sa-key.json" is the license key file request and received from DynaCov, Inc.
+  #   oc create secret docker-registry gar-pull-secret \
+  #     --docker-server=europe-west6-docker.pkg.dev \
+  #     --docker-username=_json_key \
+  #     --docker-password="$(cat sa-key.json)" \
+  #     -n <namespace>
+  # Then set: pullSecrets: [{name: gar-pull-secret}]
+  pullSecrets: []
+
+# ── Application configuration ─────────────────────────────────────────────────
+# Injected into the pod as environment variables via a ConfigMap.
+app:
+  # Tunable capacity knob — safe to adjust per cluster.
+  k6TimeoutSeconds: "300"
+  # Leave empty to use the in-cluster service account kubeconfig (normal for OpenShift).
+  kubeconfigPath: ""
+
+  # Sensitive — stored in a Secret, not the ConfigMap.
+  # Must be provided at install time; no safe default exists.
+  sessionSecret: ""          # random 32-byte string; e.g. openssl rand -hex 32
+  sessionEncryptKey: ""      # 16, 24, or 32 bytes; distinct from sessionSecret
+
+# ── Oracle database ────────────────────────────────────────────────────────────
+#
+# DynaCov Safety Automation supports three Oracle connection modes. Choose the one that matches your
+# Oracle setup.
+#
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ Mode 1 — Easy Connect (EZConnect)                                           │
+# │   DSN:  user/password@//host:port/service_name                              │
+# │   No config files needed. Oracle resolves host, port, and service directly  │
+# │   from the DSN string. TNS_ADMIN is ignored entirely by the Oracle client.  │
+# │   To use this mode:                                                         │
+# │   Set oracle.localNaming.enabled: false (default).                          │
+# ├─────────────────────────────────────────────────────────────────────────────┤
+# │ Mode 2 — Local Naming (TNS)                                                 │
+# │   DSN:  user/password@alias                                                 │
+# │   Oracle resolves the alias via tnsnames.ora. sqlnet.ora is technically     │
+# │   optional (Oracle has built-in defaults) but in practice always present    │
+# │   to configure NAMES.DIRECTORY_PATH and similar settings. Plain TCP, no TLS.│
+# │   To use this mode:                                                         │
+# │   Set oracle.localNaming.enabled: true.                                     │
+# │   Set oracle.localNaming.wallet.enabled: false (default).                   │
+# ├─────────────────────────────────────────────────────────────────────────────┤
+# │ Mode 3 — mTLS / Wallet (Oracle Cloud Autonomous Database)                   │
+# │   DSN:  user/password@alias  (same TNS alias syntax as Mode 2)              │
+# │   The alias in tnsnames.ora uses TCPS/SSL parameters in its descriptor.     │
+# │   sqlnet.ora configures SSL_SERVER_DN_MATCH and related SSL settings.       │
+# │   The wallet (cwallet.sso + ewallet.p12) provides the client certificates   │
+# │   for mutual TLS. Wallet is NOT a separate Oracle naming method — it is     │
+# │   mutual TLS (mTLS) authentication layered on top of Local Naming (TNS).    │
+# │   Oracle Cloud Autonomous Database mandates this mode.                      │
+# │   To use this mode:                                                         │
+# │   Set oracle.localNaming.enabled: true.                                     │
+# │   Set oracle.localNaming.wallet.enabled: true.                              │
+# └─────────────────────────────────────────────────────────────────────────────┘
+oracle:
+  # Oracle connection string. Required — the application will not start without this.
+  # Mode 1 (EZConnect): user/password@//host:1521/service_name
+  # Mode 2+3 (TNS):     user/password@alias  (alias resolved via tnsnames.ora)
+  dsn: ""
+
+  # ── Local Naming (TNS) — Modes 2 and 3 ──────────────────────────────────────
+  # When enabled, a Kubernetes Secret containing tnsnames.ora and sqlnet.ora
+  # (plus binary wallet files for mTLS) is created and mounted at TNS_ADMIN in
+  # the pod. The Oracle Instant Client reads these files at library load time —
+  # before main() runs.
+  # When disabled (Mode 1 / EZConnect), no Secret is created and no volume is
+  # mounted. TNS_ADMIN is ignored entirely by the Oracle client with mode 1.
+  localNaming:
+    enabled: false
+    tnsnames: ""    # full content of tnsnames.ora
+    sqlnet: ""      # full content of sqlnet.ora
+
+    # ── mTLS / Wallet — Mode 3 only ─────────────────────────────────────────
+    # Oracle Cloud Autonomous Database mandates mutual TLS (mTLS). The wallet
+    # provides the client certificate and server CA trust chain. It is the mTLS
+    # authentication layer on top of TNS — not a separate naming method.
+    # Requires oracle.localNaming.enabled: true.
+    # Binary files (cwallet.sso, ewallet.p12) must be base64-encoded:
+    #   base64 -w 0 cwallet.sso
+    #   base64 -w 0 ewallet.p12
+    wallet:
+      enabled: false
+      cwalletSso: ""      # base64-encoded content of cwallet.sso
+      ewalletP12: ""      # base64-encoded content of ewallet.p12
+      ewalletPem: ""      # content of ewallet.pem      (optional)
+      ojdbcProperties: "" # content of ojdbc.properties (optional)
+
+# ── Grafana integration ────────────────────────────────────────────────────────
+# Three parameters are required — url, token, and prometheusDatasourceUid.
+# See chart/grafana/hoplon-resilience-dashboard.json for the dashboard to import.
+#
+# Setup overview (full steps in chart/README.md):
+#   1. Create a Public organisation in Grafana (separate from Main Org).
+#   2. Import chart/grafana/hoplon-resilience-dashboard.json into that Public org.
+#   3. Create a service account with Editor permission on the Public org — use its token here.
+#   4. Find the Prometheus datasource UID in Grafana → Connections → Data sources.
+grafana:
+  # Required. Base URL of the Grafana instance reachable from the DynaCov Safety Automation pod.
+  # Use the in-cluster service URL (e.g. http://grafana.<namespace>.svc:3000) so the
+  # pod can reach Grafana without going through the external OpenShift Route.
+  url: ""
+  # Required. Service account token with Editor permission on the Public Grafana org.
+  # A Main Org. token silently misroutes annotations — they appear to succeed but never show up.
+  # Stored in a Secret, not the ConfigMap.
+  token: ""
+  # Required. UID of the Istio Prometheus datasource in Grafana.
+  # DynaCov Safety Automation reads the Prometheus scrape interval at test-run startup so warm-up
+  # waits are computed correctly (2 × interval + 2s).
+  # Find it: Grafana → Connections → Data sources → click the datasource → UID is in the URL.
+  prometheusDatasourceUid: ""
+  # Optional. Set to "true" to disable TLS certificate verification for all Grafana requests.
+  # Only for development environments where Grafana uses a self-signed cluster CA not trusted
+  # by the local machine. Never enable in production.
+  skipTLSVerify: "false"
+
+# ── OpenShift Route ────────────────────────────────────────────────────────────
+route:
+  enabled: true
+  # Leave empty to let OpenShift auto-assign a hostname.
+  host: ""
+
+# ── Service account ────────────────────────────────────────────────────────────
+serviceAccount:
+  name: dynacov-safety-automation-service-account

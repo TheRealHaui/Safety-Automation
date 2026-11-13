@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository":  { "type": "string" },
+        "tag":         { "type": "string" },
+        "pullPolicy":  { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] },
+        "pullSecrets": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "k6TimeoutSeconds": { "type": "string" },
+        "kubeconfigPath":   { "type": "string" },
+        "sessionSecret":    { "type": "string" },
+        "sessionEncryptKey":{ "type": "string" }
+      }
+    },
+    "oracle": {
+      "type": "object",
+      "properties": {
+        "dsn": { "type": "string" },
+        "localNaming": {
+          "type": "object",
+          "properties": {
+            "enabled":  { "type": "boolean" },
+            "tnsnames": { "type": "string" },
+            "sqlnet":   { "type": "string" },
+            "wallet": {
+              "type": "object",
+              "properties": {
+                "enabled":         { "type": "boolean" },
+                "cwalletSso":      { "type": "string" },
+                "ewalletP12":      { "type": "string" },
+                "ewalletPem":      { "type": "string" },
+                "ojdbcProperties": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "grafana": {
+      "type": "object",
+      "properties": {
+        "url":                    { "type": "string" },
+        "token":                  { "type": "string" },
+        "prometheusDatasourceUid":{ "type": "string" },
+        "skipTLSVerify":          { "type": "string", "enum": ["true", "false"] }
+      }
+    },
+    "route": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "host":    { "type": "string" }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,10 @@
+
+#Test Docker
+#local machine
+docker build -t hoplon .
+
+
+#Start redeploy
+#to OpenShift
+git push && echo " " && oc start-build hoplon && echo " " && oc logs -f bc/hoplon
+

@@ -1,0 +1,6 @@
+# resources-local-development-only/ contains the Oracle wallet and .env file
+# used exclusively for local development (make run / make dev).
+# It must never enter the Docker build context — wallet files and credentials
+# must not be baked into the image. Configuration is provided at runtime via
+# Kubernetes Secrets and ConfigMaps managed by the Helm chart.
+resources-local-development-only/

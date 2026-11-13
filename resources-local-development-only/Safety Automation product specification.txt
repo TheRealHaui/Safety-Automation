@@ -1,0 +1,338 @@
+SAFETY AUTOMATION — PRODUCT SPECIFICATION
+OpenShift Resilience Testing Platform
+Version 0.x (pre-release / active development)
+Date: April 2026
+===============================================================================
+
+
+1. PURPOSE AND PROBLEM STATEMENT
+---------------------------------
+Modern microservice applications running on OpenShift/Kubernetes are expected
+to handle partial failures gracefully — a dependency going slow, a pod
+crashing, or a service returning errors should degrade gracefully rather than
+cause cascading failures. In practice, teams discover these gaps only in
+production incidents.
+
+Safety Automation is an internal resilience testing platform that allows engineering teams
+to systematically inject controlled failures into running OpenShift workloads,
+observe how the system behaves under stress, and produce a structured audit
+trail of the results. It is designed to be operated directly by developers and
+platform engineers without requiring deep chaos engineering expertise.
+
+Safety Automation was developed under the codename "Hoplon" — the large shield
+carried by ancient Greek hoplite soldiers: protection through deliberate
+preparation. The codename survives in technical identifiers such as Kubernetes
+labels (hoplon.io/managed-by) and resource name prefixes (hoplon-k6-, hoplon-vs-).
+
+
+2. TARGET USERS
+---------------
+- Platform engineers responsible for OpenShift workload reliability
+- Development teams wanting to verify their services handle dependency failures
+- Quality assurance engineers running resilience validation before releases
+- Engineering managers and auditors who need documented evidence of resilience
+  testing (via PDF reports)
+
+
+3. DEPLOYMENT ENVIRONMENT
+--------------------------
+Safety Automation is deployed as a single container on OpenShift. It requires:
+
+- OpenShift cluster with Istio/OpenShift Service Mesh (OSSM, Maistra 2.x)
+  installed — fault injection depends on Istio VirtualServices
+- An Oracle database schema for persistent storage,
+  accessed via Oracle Instant Client with wallet authentication
+- Grafana instance with access to Istio Prometheus for live metric dashboards
+- Sufficient RBAC permissions to list Deployments/DeploymentConfigs, manage
+  pods, create K6 Jobs and ConfigMaps, and create/delete VirtualServices but
+  no OpenShift cluster or any whatsoever elevated OpenShift privileges.
+
+Tested environment:
+  Cluster:    https://api.sno.trusted-java-testing.com:6443 (Single Node OpenShift)  #not reachable externally
+  Namespace:  safety-automation-shopping-demo
+  OSSM:       Maistra 2.6.14, SMCP name "basic" in istio-system
+  Grafana:    12.4.2
+
+
+4. ARCHITECTURE OVERVIEW
+-------------------------
+Safety Automation is a Go monolith. There is no microservice split, no message queue, and
+no external orchestration dependency beyond the OpenShift cluster itself.
+
+  ┌─────────────────────────────────────────────────────┐
+  │                    Go Binary (Safety Automation)                │
+  │                                                     │
+  │  Chi v5 HTTP router                                 │
+  │  Server-side HTML templates (Go html/template)      │
+  │  htmx for partial page updates (no JavaScript SPA)  │
+  │  Tailwind CSS (CDN)                                 │
+  │                                                     │
+  │  ┌──────────────┐  ┌──────────────┐                 │
+  │  │  Scenario    │  │  Worker Pool │                 │
+  │  │  Registry    │  │  (goroutines)│                 │
+  │  └──────────────┘  └──────────────┘                 │
+  │                                                     │
+  │  Backends:                                          │
+  │    Oracle DB      — persistence (godror driver)     │
+  │    client-go      — OpenShift/Kubernetes API        │
+  │    Prometheus     — metric queries during scenarios  │
+  │    Grafana API    — dashboard annotations           │
+  └─────────────────────────────────────────────────────┘
+       │                    │                  │
+  Oracle Cloud DB      OpenShift API      Grafana/Prometheus
+
+Key architectural decisions:
+- Monolith: no deployment complexity, single binary, single container image
+- Server-side rendering: no frontend build step, works without JavaScript for
+  navigation; htmx adds reactive behaviour without a JS framework
+- Oracle DB: chosen for its strong constraint and audit trail features; all
+  schema changes are applied via an idempotent migration function at startup
+- SSE (Server-Sent Events): live log streaming from test runs to the browser
+  without WebSocket complexity
+- Embedded templates and resources: HTML templates and embedded Oracle Instant
+  Client are compiled into the binary at build time (go:embed), producing a
+  self-contained image
+- This architecture was not only chosen for its simplicity and therefore
+  reliability but also because of security reasons (no insecure web and Javascript
+  frameworks on purpose). 
+
+
+5. FEATURES
+------------
+
+5.1 Workload Discovery
+  Safety Automation queries the OpenShift API to list all Deployments and DeploymentConfigs
+  in the configured namespace. The workload list is the starting point for every
+  test run. Safety Automation excludes its own pod from the list.
+
+5.2 Test Run Execution
+  The user selects a workload, one or more target URLs (with HTTP method,
+  optional request body, and Content-Type), and a scenario. Safety Automation then:
+    1. Persists the run record to the database with status PENDING
+    2. Queues the run on the worker pool goroutine
+    3. Streams live logs back to the browser via SSE as the scenario executes
+    4. Persists the final status (SUCCESS / FAILED / CANCELLED) and a result
+       summary on completion
+
+  Multiple test runs can execute concurrently across different workloads.
+
+5.3 Scenarios (Resilience Test Types)
+
+  a) Pod Kill and Start
+     Deletes one or more pods from the target workload while K6 applies
+     continuous load via the configured URLs. Measures whether the workload
+     recovers within its SLA and whether any HTTP 5xx errors reach the client.
+     Uses Prometheus Istio golden signals to detect recovery. Annotates the
+     Grafana dashboard at kill and recovery events.
+
+  b) HTTP Dependency Delay
+     Automatically discovers outbound HTTP dependencies of the target workload
+     by polling Prometheus for istio_requests_total metrics while K6 drives
+     traffic (dependency discovery phase). Then injects a configurable fixed
+     latency (default: 60 seconds at 100% of requests) on all discovered
+     dependencies simultaneously using Istio VirtualServices. Measures whether
+     the workload handles slow dependencies with appropriate timeouts, circuit
+     breakers, and fallback logic. Runs in four phases:
+       Phase 0 — dependency discovery (K6 traffic + Prometheus polling)
+       Phase 1 — pre-fault warmup (baseline measurement)
+       Phase 2 — fault injection (VirtualServices active, 120 seconds)
+       Phase 3 — post-fault observation (VirtualServices removed, recovery)
+
+  c) HTTP Dependency Error
+     Same architecture as HTTP Dependency Delay but injects HTTP 503 abort
+     responses on 50% of requests to discovered dependencies, rather than
+     latency. Tests circuit breaker triggering, error budget consumption, and
+     fallback logic under hard dependency errors.
+
+5.4 K6 Load Generation
+  All scenarios drive realistic HTTP load during the test using K6 (a
+  load-testing tool) running as an OpenShift Job. Safety Automation:
+  - Generates a K6 JavaScript script from the user-configured URLs (method,
+    body, Content-Type, all per-URL)
+  - Stores the script in a ConfigMap
+  - Creates a K6 Job that references the ConfigMap
+  - Injects the Istio sidecar annotation onto the K6 pod so it participates
+    in the service mesh and its traffic is visible in Prometheus/Grafana
+  - Deletes the Job and ConfigMap on scenario completion
+
+5.5 Live Log Streaming
+  As a scenario runs, log entries (INFO / WARN / ERROR level) are written
+  simultaneously to:
+  - The Oracle database (for the permanent audit trail)
+  - An SSE stream consumed by the browser (for live display)
+  The browser shows a scrolling log panel that updates in real time without
+  polling.
+
+5.6 Grafana Dashboard Integration
+  Each test run embeds the Safety Automation Resilience Dashboard (a custom Grafana
+  dashboard showing Istio golden signals: request rate, latency percentiles,
+  error rate, saturation) directly inside the run detail page in an iframe.
+  The dashboard:
+  - Is scoped to the workload under test (namespace/workload labels)
+  - Shows a time window padded around the run start/end times
+  - Is pinned (no live refresh) for completed runs; refreshes every 5 seconds
+    for active runs
+  - Receives Grafana annotations at key scenario events (run start, fault
+    applied, fault removed, run end)
+
+5.7 PDF Audit Report
+  After a test run completes, a PDF report can be downloaded. The report is
+  PDF/A-1b compliant (archival-grade) and contains:
+  - Run metadata (workload, scenario, start/end time, operator, status)
+  - All log entries from the run
+  - Test result data (metrics, findings)
+  The PDF is generated in Go without external dependencies at the cost of a
+  hand-written PDF encoder; a planned rewrite will use gopdf + Ghostscript.
+
+5.8 User Management
+  Safety Automation has a built-in user account system:
+  - Session-based authentication (bcrypt passwords, gorilla/sessions cookies,
+    SameSite=Lax CSRF mitigation)
+  - Password policy: minimum 12 characters, uppercase, lowercase, digit,
+    special character, must not contain the username; 200-byte cap to prevent
+    bcrypt DoS
+  - Each user has two flags:
+      IS_ADMIN   ('Y'/'N') — grants access to user management pages
+      IS_ENABLED ('Y'/'N') — must be 'Y' to log in at all
+  - Administrators can create users, change passwords, and toggle flags
+  - Safety constraint: the last active administrator (IS_ADMIN='Y' and
+    IS_ENABLED='Y') cannot be demoted or disabled; a second admin must be
+    promoted first
+  - Each user can change their own password from their profile page
+  - Profile page shows username, account creation date, last sign-in time,
+    role, and account status
+  - A default admin account is created on first startup with a strong default
+    password (must be changed immediately)
+
+
+6. DATA MODEL (ORACLE DB)
+--------------------------
+Tables:
+
+  APPLICATION_USER
+    ID, USERNAME (unique), PASSWORD_HASH, CREATED_AT,
+    LAST_LOGIN_AT, IS_ADMIN (Y/N), IS_ENABLED (Y/N)
+
+  TEST_SCENARIO
+    ID, SCENARIO_NAME (unique), GO_STRUCT_NAME (unique)
+    — Seeded at startup from the Go scenario registry
+
+  TEST_RUN
+    ID, SCENARIO_TYPE_ID (FK), WORKLOAD_NAME, WORKLOAD_NAMESPACE,
+    WORKLOAD_KIND, STARTED_BY_APPLICATION_USER_ID (FK),
+    STARTED_AT, FINISHED_AT, STATUS, RESULT_SUMMARY
+
+  TEST_RUN_URLS_FOR_WORKLOAD
+    ID, TEST_RUN_ID (FK), URL_STRING, HTTP_METHOD_STRING,
+    REQUEST_BODY (CLOB, nullable), CONTENT_TYPE (nullable),
+    URL_USER_SORT
+    — One row per configured URL per run; body only permitted for
+      POST/PUT/PATCH/DELETE (enforced by check constraint)
+
+  TEST_RUN_LOG
+    ID, TEST_RUN_ID (FK), LOG_TIMESTAMP, LOG_LEVEL, MESSAGE (CLOB)
+
+  TEST_RUN_RESULT_TYPE
+    ID, RESULT_TYPE_CODE (unique), RESULT_TYPE_NAME (unique)
+    — Lookup table; seeded at startup; extensible without schema changes
+
+  TEST_RUN_RESULT
+    ID, TEST_RUN_ID (FK), TEST_RUN_RESULT_TYPE_ID (FK),
+    RESULT_VALUE, RESULT_VALUE_TYPE ('string' or 'number')
+    — EAV pattern; new result types (e.g. p99 latency, error rate) can
+      be added without schema migrations
+
+Schema management: idempotent migration function runs at every startup using
+Oracle PL/SQL anonymous blocks with EXCEPTION WHEN ORA-955/ORA-1430 guards to
+ensure safe database migration on Safety Automation version upgrades.
+No migration-versioning library is used.
+
+
+7. SECURITY MODEL
+------------------
+- Authentication: bcrypt (DefaultCost=10) + gorilla/sessions cookie store
+- Session cookie: HttpOnly, SameSite=Lax, 7-day expiry
+- Password DoS protection: 200-byte input cap before bcrypt is called (both
+  login and password change)
+- Admin access: checked at every request via session-stored IS_ADMIN flag;
+  admin routes are grouped under /admin/* with a dedicated middleware
+- Account lockout: IS_ENABLED flag; disabled accounts receive a specific error
+  message at login distinct from "wrong password"
+- Known limitation: session cookies are not invalidated server-side on password
+  change (cookie-based store has no server-side invalidation; requires moving
+  to a server-side session store to fix)
+- RBAC on OpenShift: the Safety Automation pod service account has scoped permissions
+  (list Deployments/DeploymentConfigs, create/delete Jobs, ConfigMaps,
+  VirtualServices, delete Pods) that request the absolute minimum of privileges
+  needed. They are defined in resources-various/yaml/rbac/.
+- The Safety Automation OpenShift pod does NOT need the anyuid or any root privilege
+
+
+8. OPERATIONS
+--------------
+
+8.1 Build and Deploy
+  make build          — compile binary to bin/resilience-tester
+  make run            — run locally (sources .env)
+  make dev            — hot-reload via Air
+  oc start-build hoplon && oc logs -f bc/hoplon && oc rollout restart deployment hoplon   — build on OpenShift and start new deployment
+
+8.2 Configuration (.env)
+  ORACLE_DSN          — Oracle connection string (user/pass@service_high)
+  TNS_ADMIN           — Path to Oracle wallet directory (must be set before
+                        process start; read by Oracle native client at load time)
+  KUBECONFIG_PATH     — Optional; uses active kube context if not set
+  SESSION_SECRET      — Cookie signing secret (change in production)
+  GRAFANA_URL         — Grafana base URL
+  GRAFANA_TOKEN       — Grafana service account token (read/write)
+  APP_PORT            — HTTP listen port (default 8080)
+
+8.3 OpenShift RBAC
+  Apply before deploying:
+    oc apply -f resources-various/yaml/rbac/
+
+  Any pod exposed via OpenShift Route in an Istio-enrolled namespace requires
+  the label maistra.io/expose-route: "true" on the pod template, otherwise
+  the OpenShift router traffic is silently dropped by the Istio NetworkPolicy.
+
+
+9. KNOWN LIMITATIONS AND PLANNED WORK
+--------------------------------------
+- PDF generation: hand-written PDF/A-1b encoder; planned rewrite with gopdf +
+  Ghostscript
+- Session invalidation: changing a password does not invalidate other open
+  sessions; server-side session store required to fix
+- Grafana annotation colours: configured but not rendering in Grafana 12.4.2
+  (suspected rendering quirk; Trello #120)
+- No automatic resilience finding detection yet: the raw Grafana/Prometheus
+  data is shown but conclusions require human interpretation. Planned feature
+  (Trello #151): post-run PromQL-based automatic finding detection (timeout
+  fingerprinting, fault masking detection, retry storm detection, circuit
+  breaker signal, cascading failure) with optional LLM-generated plain-language
+  narrative via Gemma 4 on Ollama
+- No rate limiting on login or password change endpoints
+- VirtualService restore on crash: if Safety Automation is killed mid-scenario, injected
+  VirtualServices are cleaned up on next startup (orphan scan), but patched
+  pre-existing VSes are not durably restored (Trello #HnTfQynp)
+
+
+10. GLOSSARY
+-------------
+Workload        An OpenShift Deployment or DeploymentConfig; the system
+                under test
+Scenario        A named resilience test type (Pod Kill, HTTP Dependency
+                Delay, HTTP Dependency Error, Resource Stress)
+Test Run        A single execution of a scenario against a workload,
+                with all associated logs, results, and configuration
+VirtualService  An Istio networking resource used to inject faults at the
+                service mesh level, without modifying application code
+K6              Open-source load testing tool; Safety Automation runs K6 as an
+                OpenShift Job to drive HTTP traffic during test runs
+Golden Signals  The four key observability metrics from the Google SRE
+                book: latency, traffic, errors, saturation; shown on the
+                Safety Automation Resilience Grafana Dashboard
+PDF/A-1b        ISO archival PDF standard; Safety Automation produces PDF/A-1b
+                compliant audit reports for each completed test run
+Hoplon          Original codename of Safety Automation (the shield of a Greek
+                hoplite soldier); still used in technical identifiers such
+                as Kubernetes labels and resource name prefixes

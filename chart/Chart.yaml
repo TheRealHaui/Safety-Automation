@@ -1,0 +1,44 @@
+apiVersion: v2
+name: dynacov-safety-automation
+description: OpenShift Resilience Testing Platform — executes chaos/resilience scenario tests against Deployments and DeploymentConfigs with live log streaming and PDF audit report generation.
+type: application
+#Saved https://console.cloud.google.com/storage/browser/public-accessible-product-logo
+icon: https://storage.googleapis.com/public-accessible-product-logo/dynacov-safety-automation-logo.svg
+version: 0.1.1
+appVersion: "0.1.1"
+
+# Minimum Kubernetes/OpenShift version required.
+# chart-verifier rejects charts that omit this field.
+kubeVersion: ">=1.25"
+
+keywords:
+  - resilience
+  - chaos
+  - fault-injection
+  - openshift
+  - testing
+  - pdf
+  - audit
+  - k6
+  - istio
+
+home: https://www.safetyautomation.ai/
+sources:
+  # Public Google Artifact Repository to download the Helm Chart.
+  # The container image it uses sits in a private Google Artifact Repository and is protected by Google IAM.
+  - oci://europe-west6-docker.pkg.dev/automation-safety-485518/dynacov-safety-automation-public/dynacov-safety-automation
+
+maintainers:
+  - name: DynaCov Inc.
+    email: michael.hausegger@hausegger.tech
+
+# Required annotations for Red Hat Marketplace / chart-verifier certification.
+# chart-verifier checks that both of these are present and non-empty.
+annotations:
+  charts.openshift.io/archs: x86_64
+  charts.openshift.io/supportedOpenShiftVersions: ">=4.12"
+  #We use dynacov-safety-automation as name and not safety-automation
+  #because safety-automation would be too generic
+  #Further, all other comnpanies at https://charts.openshift.io/ have
+  #self invented product or company names first too
+  charts.openshift.io/name: dynacov-safety-automation

@@ -1,0 +1,69 @@
+{{define "base.html"}}
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{{block "title" .}}Safety Automation{{end}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    .status-PENDING   { @apply bg-yellow-100 text-yellow-800; }
+    .status-RUNNING   { @apply bg-blue-100 text-blue-800; }
+    .status-SUCCESS   { @apply bg-green-100 text-green-800; }
+    .status-FAILED    { @apply bg-red-100 text-red-800; }
+    .status-CANCELLED { @apply bg-gray-100 text-gray-600; }
+    [x-cloak] { display: none; }
+  </style>
+</head>
+<body class="h-full flex flex-col">
+
+{{if .User}}
+<nav class="bg-gray-900 text-white shadow-lg">
+  <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-6">
+      <a href="/" class="text-lg font-semibold tracking-tight text-white hover:text-gray-300 transition">
+        ⚡ Safety Automation
+      </a>
+      <div class="flex gap-1">
+        <a href="/" class="px-3 py-2 rounded text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition">
+          Workloads
+        </a>
+        <a href="/runs" class="px-3 py-2 rounded text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition">
+          Test Runs
+        </a>
+        {{if .User.IsAdmin}}
+        <a href="/admin/users" class="px-3 py-2 rounded text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition">
+          Users
+        </a>
+        <a href="/admin/logs" class="px-3 py-2 rounded text-sm font-medium text-gray-300 hover:bg-gray-700 hover:text-white transition">
+          Server Log
+        </a>
+        {{end}}
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-sm text-gray-400">
+      <a href="/profile" class="hover:text-white transition">{{.User.Username}}</a>
+      <form method="POST" action="/logout" class="inline">
+        <button type="submit" class="px-3 py-1.5 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition">
+          Sign out
+        </button>
+      </form>
+    </div>
+  </div>
+</nav>
+{{end}}
+
+<main class="flex-1 max-w-screen-xl mx-auto w-full px-4 py-8">
+  {{block "content" .}}{{end}}
+</main>
+
+<footer class="border-t border-gray-200 bg-white">
+  <div class="max-w-screen-xl mx-auto px-4 py-3 text-xs text-gray-400 text-right">
+    Safety Automation v{{.Version}}
+  </div>
+</footer>
+
+</body>
+</html>
+{{end}}

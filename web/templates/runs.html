@@ -1,0 +1,106 @@
+{{define "runs_template"}}
+{{template "base.html" .}}
+{{end}}
+
+{{define "title"}}All Test Runs – Safety Automation{{end}}
+
+{{define "content"}}
+<div class="space-y-4">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">All Test Runs</h1>
+      <p class="text-sm text-gray-500 mt-0.5">{{.Data.Result.TotalCount}} total test runs</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center">
+    <input type="text" id="search" name="search" value="{{.Data.Req.Search}}"
+           placeholder="Search workload, scenario, user…"
+           hx-get="/runs" hx-trigger="input delay:300ms" hx-target="#runs-table"
+           hx-include="[name='sort_by'],[name='sort_dir']"
+           class="flex-1 min-w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm"/>
+    <select name="sort_by" hx-get="/runs" hx-trigger="change" hx-target="#runs-table"
+            hx-include="[name='search'],[name='sort_dir']"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+      <option value="started_at" {{if eq .Data.Req.SortBy "started_at"}}selected{{end}}>Sort: Date</option>
+      <option value="workload"   {{if eq .Data.Req.SortBy "workload"}}selected{{end}}>Sort: Workload</option>
+      <option value="scenario"   {{if eq .Data.Req.SortBy "scenario"}}selected{{end}}>Sort: Scenario</option>
+      <option value="status"     {{if eq .Data.Req.SortBy "status"}}selected{{end}}>Sort: Status</option>
+    </select>
+    <select name="sort_dir" hx-get="/runs" hx-trigger="change" hx-target="#runs-table"
+            hx-include="[name='search'],[name='sort_by']"
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+      <option value="desc" {{if eq .Data.Req.SortDir "desc"}}selected{{end}}>Newest first</option>
+      <option value="asc"  {{if eq .Data.Req.SortDir "asc"}}selected{{end}}>Oldest first</option>
+    </select>
+  </div>
+
+  {{template "runs_table_template" .Data}}
+</div>
+{{end}}
+
+{{define "runs_table_template"}}
+<div id="runs-table" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+  <table class="min-w-full divide-y divide-gray-200 text-sm">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Ref</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Workload</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Scenario</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Started</th>
+        <th class="px-4 py-3 text-right font-semibold text-gray-600">Duration</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">By</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Status</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {{range .Result.Items}}
+      <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/runs/{{.ID}}'">
+        <td class="px-4 py-3 font-mono text-gray-500 text-xs">RUN-{{printf "%06d" .ID}}</td>
+        <td class="px-4 py-3 font-mono font-medium text-blue-700">{{.WorkloadName}}</td>
+        <td class="px-4 py-3 text-gray-700">{{.ScenarioName}}</td>
+        <td class="px-4 py-3 text-gray-500 whitespace-nowrap">{{.StartedAt.Format "2006-01-02 15:04:05"}}</td>
+        <td class="px-4 py-3 text-right text-gray-600">
+          {{if gt .DurationSeconds 0.0}}{{printf "%.0fs" .DurationSeconds}}{{else}}—{{end}}
+        </td>
+        <td class="px-4 py-3 text-gray-600">{{.StartedBy}}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold
+            {{if eq (print .Status) "SUCCESS"}}bg-green-100 text-green-800
+            {{else if eq (print .Status) "FAILED"}}bg-red-100 text-red-800
+            {{else if eq (print .Status) "RUNNING"}}bg-blue-100 text-blue-800
+            {{else if eq (print .Status) "CANCELLED"}}bg-gray-100 text-gray-600
+            {{else}}bg-yellow-100 text-yellow-800{{end}}">
+            {{.Status}}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-right">
+          <a href="/runs/{{.ID}}/pdf" onclick="event.stopPropagation()"
+             class="text-xs text-gray-400 hover:text-blue-600 font-medium">PDF</a>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="8" class="px-4 py-8 text-center text-gray-400">No test runs found.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  {{if gt .Result.TotalPages 1}}
+  <div class="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-sm text-gray-600">
+    <span>Page {{.Result.Page}} of {{.Result.TotalPages}}</span>
+    <div class="flex gap-2">
+      {{if gt .Result.Page 1}}
+      <a href="?page={{sub .Result.Page 1}}&search={{.Req.Search}}&sort_by={{.Req.SortBy}}&sort_dir={{.Req.SortDir}}"
+         class="px-3 py-1 rounded border border-gray-300 hover:bg-white transition">Prev</a>
+      {{end}}
+      {{if lt .Result.Page .Result.TotalPages}}
+      <a href="?page={{add .Result.Page 1}}&search={{.Req.Search}}&sort_by={{.Req.SortBy}}&sort_dir={{.Req.SortDir}}"
+         class="px-3 py-1 rounded border border-gray-300 hover:bg-white transition">Next</a>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

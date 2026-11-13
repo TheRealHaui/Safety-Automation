@@ -1,0 +1,32 @@
+{{- if .Values.route.enabled }}
+# OpenShift Route — exposes the service externally.
+# Use Route instead of Ingress on OpenShift; the two are not interchangeable.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "hoplon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hoplon.labels" . | nindent 4 }}
+  annotations:
+    # HAProxy cuts idle HTTP connections after its default timeout (30s).
+    # SSE log streams are long-lived and quiet between log messages —
+    # without this annotation HAProxy kills the stream, the browser fires
+    # onerror, and a full page reload causes the Grafana iframe to flicker.
+    # The server also sends a heartbeat comment every 20s, but this annotation
+    # is the safety net for any proxy hop that doesn't see those comments.
+    # This is only a fallback for https://trello.com/c/82Zh8Sda/192-grafana-flickers-constantly-when-hoplon-deployed-to-openshift
+    haproxy.router.openshift.io/timeout: 360s
+spec:
+  {{- if .Values.route.host }}
+  host: {{ .Values.route.host }}
+  {{- end }}
+  to:
+    kind: Service
+    name: {{ include "hoplon.fullname" . }}
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+{{- end }}

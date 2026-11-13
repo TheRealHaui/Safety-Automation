@@ -1,0 +1,311 @@
+{{define "run_detail_template"}}
+{{template "base.html" .}}
+{{end}}
+
+{{define "title"}}RUN-{{printf "%06d" .Data.Run.ID}} – Safety Automation{{end}}
+
+{{define "content"}}
+{{$run := .Data.Run}}
+{{$urls := .Data.URLs}}
+{{$logs := .Data.Logs}}
+{{$active := .Data.IsActive}}
+{{$grafanaFrom := .Data.GrafanaFrom}}
+{{$grafanaTo := .Data.GrafanaTo}}
+{{$grafanaURL := .Data.GrafanaURL}}
+{{$grafanaDashboardUID := .Data.GrafanaDashboardUID}}
+{{$grafanaOrgID := .Data.GrafanaOrgID}}
+
+<div class="space-y-6">
+  <div class="text-sm text-gray-500">
+    <a href="/" class="hover:text-blue-600">Workloads</a>
+    <span class="mx-2">/</span>
+    <a href="/workloads/{{$run.WorkloadName}}?kind={{$run.WorkloadKind}}" class="hover:text-blue-600">{{$run.WorkloadName}}</a>
+    <span class="mx-2">/</span>
+    <span class="text-gray-900 font-mono">RUN-{{printf "%06d" $run.ID}}</span>
+  </div>
+
+  <!-- Run summary card -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <h1 class="text-xl font-bold text-gray-900">
+          RUN-{{printf "%06d" $run.ID}}
+        </h1>
+        <span class="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-semibold
+          {{if eq (print $run.Status) "SUCCESS"}}bg-green-100 text-green-800
+          {{else if eq (print $run.Status) "FAILED"}}bg-red-100 text-red-800
+          {{else if eq (print $run.Status) "RUNNING"}}bg-blue-100 text-blue-800 animate-pulse
+          {{else if eq (print $run.Status) "CANCELLED"}}bg-gray-100 text-gray-600
+          {{else}}bg-yellow-100 text-yellow-800{{end}}">
+          {{$run.Status}}
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        {{if $active}}
+          {{/*
+        <button
+          hx-post="/api/runs/{{$run.ID}}/cancel"
+          hx-confirm="Cancel this test run?"
+          class="px-3 py-1.5 text-sm bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-medium transition">
+          Cancel Run
+        </button>
+        */}}
+        {{end}}
+        <a href="/runs/{{$run.ID}}/pdf"
+          class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition">
+          Download PDF Report
+        </a>
+      </div>
+    </div>
+    <div class="px-6 py-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Workload</dt>
+        <dd class="font-mono font-medium text-gray-900">{{$run.WorkloadName}}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Scenario</dt>
+        <dd class="font-medium text-gray-900">{{$run.ScenarioName}}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Started by</dt>
+        <dd class="text-gray-900">{{$run.StartedBy}}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Duration</dt>
+        <dd class="text-gray-900">
+          {{if gt $run.DurationSeconds 0.0}}{{printf "%.0fs" $run.DurationSeconds}}{{else if $active}}Running…{{else}}—{{end}}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Started</dt>
+        <dd class="text-gray-900">{{$run.StartedAt.Format "2006-01-02 15:04:05 UTC"}}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Finished</dt>
+        <dd class="text-gray-900">
+          {{if $run.FinishedAt}}{{$run.FinishedAt.Format "2006-01-02 15:04:05 UTC"}}{{else}}—{{end}}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Namespace</dt>
+        <dd class="font-mono text-gray-900">{{$run.WorkloadNamespace}}</dd>
+      </div>
+      <div>
+        <dt class="text-gray-500 text-xs uppercase tracking-wide mb-0.5">Kind</dt>
+        <dd class="text-gray-900">{{$run.WorkloadKind}}</dd>
+      </div>
+    </div>
+    {{if $run.ResultSummary}}
+    <div class="px-6 py-3 border-t border-gray-100 bg-gray-50">
+      <p class="text-sm text-gray-700"><span class="font-semibold">Result: </span>{{$run.ResultSummary}}</p>
+    </div>
+    {{end}}
+    {{if $urls}}
+    <div class="px-6 py-3 border-t border-gray-100">
+      <p class="text-xs uppercase tracking-wide text-gray-500 mb-2 font-semibold">URLs Under Load</p>
+      <div class="flex flex-col gap-1.5">
+        {{range $urls}}
+        {{if .RequestBody}}
+        {{/* URL has a body — use native <details> for expand/collapse, no JS needed. */}}
+        <details class="border border-gray-200 rounded text-xs font-mono">
+          <summary class="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded cursor-pointer select-none list-none">
+            <span class="text-gray-400 mr-1">▶</span>
+            <span class="font-semibold text-gray-500">{{.HTTPMethod}}</span>
+            <span class="text-gray-700">{{.URLString}}</span>
+            <span class="ml-auto text-gray-400 text-xs font-sans font-normal">has body</span>
+          </summary>
+          <div class="px-3 py-2 space-y-1 bg-white">
+            {{if .ContentType}}
+            <p class="text-gray-500">Content-Type: <span class="text-gray-800">{{.ContentType}}</span></p>
+            {{end}}
+            <pre class="bg-gray-950 text-green-400 rounded px-3 py-2 overflow-x-auto whitespace-pre-wrap break-all">{{.RequestBody}}</pre>
+          </div>
+        </details>
+        {{else}}
+        {{/* URL without body — plain pill, unchanged from before. */}}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 rounded text-xs font-mono w-fit">
+          <span class="font-semibold text-gray-500">{{.HTTPMethod}}</span>
+          <span class="text-gray-700">{{.URLString}}</span>
+        </span>
+        {{end}}
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Grafana Dashboard -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+      <h2 class="text-base font-semibold text-gray-900">Network metrics</h2>
+      <button onclick="toggleGrafanaFullscreen()"
+              id="grafana-fullscreen-btn"
+              class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition">
+        ⛶ Full Screen
+      </button>
+    </div>
+    <div class="p-0">
+        {{/*  -- Old comment probably remove
+        Important to read resources-local-development-only/archive/grafana/grafana-dashboard
+        in order deal correctly
+        We solely use Public
+        organisation here momentarily now
+        */}}
+        {{/*
+        todo
+        from=now-5m&to=now parameters for old stored runs
+        have to use the appropriate times
+        To be read from the database
+        Has to get fixed before go live
+        Task created see https://trello.com/c/1HW7GUou/119-historic-time-the-end-user-looks-at-wrong-for-past-test-scenario-runs
+        Further however
+        See https://trello.com/c/d3EWedmg/118-preserve-dashboards-important-audit
+        */}}
+        {{/*
+        Grafana time range notes:
+        - GrafanaFrom/GrafanaTo are pre-computed in ShowTestRunDetail with a 30s padding on each
+          side of the run window. This prevents Grafana's "Data outside time range" popup for
+          metrics scraped slightly outside the exact run boundaries. Time arithmetic cannot be
+          done in templates — see httpTestRunHandlers.go.
+        - Historic runs: fixed time window. Active runs: right edge stays "now".
+          See https://trello.com/c/1HW7GUou (historic time window) and
+              https://trello.com/c/d3EWedmg (dashboard preservation for audit).
+
+        orgId in the URL is mandatory:
+        It pins the iframe to the Public Grafana org regardless of the viewer's Grafana session.
+        Without it, cross-site iframe requests (e.g. from OpenShift-deployed Safety Automation) have their
+        Grafana session cookie blocked by SameSite policy → Grafana falls back to anonymous access
+        → defaults to Main Org (org 1) → annotations posted to the Public org become invisible.
+        No error is shown; annotations just silently don't appear.
+      */}}
+      <iframe
+        id="grafana-iframe"
+        {{/* GrafanaFrom/GrafanaTo are pre-computed in the handler (ShowTestRunDetail) with a 1-minute
+        padding on each side of the run window. This prevents the Grafana "Data outside time range"
+        popup caused by metrics scraped slightly outside the exact run start/end boundaries.
+        Time arithmetic cannot be done in templates — see httpTestRunHandlers.go. */}}
+      {{if $active}}
+        {{/* Active run: refresh every 5s, right edge stays live ("now").
+        orgId=2 in the url is definitely needed! It pins the request to the Public org regardless
+        of the viewer's Grafana session.  Without it, cross-site iframe requests
+        (e.g. from the OpenShift-deployed Safety Automation) otherwise had  their Grafana session cookie blocked
+        by SameSite policy → Grafana then falls back to anonymous  access which defaults to Main Org
+        (org 1) which then would lead annotations posted to Public org become invisible in the appliation.
+        Without any error. Without whatever. Just no annotations visible. This is a very nasty problem if
+        if happens. So always make sure to provide the orgid with the url.*/}}
+        {{/* Active run: refresh every 5s, right edge stays live ("now"). */}}
+        src="{{$grafanaURL}}/d/{{$grafanaDashboardUID}}/hoplon-resilience-dashboard?orgId={{$grafanaOrgID}}&kiosk&refresh=5s&from={{$grafanaFrom}}&to={{$grafanaTo}}&var-namespace={{$run.WorkloadNamespace}}&var-workload={{$run.WorkloadName}}"
+      {{else}}
+        {{/* Finished run: refresh=1d is a workaround — Grafana has no URL param to fully disable refresh.
+        Fixed time window pinned to run start/end (fixes Trello #119).
+        orgId=2 in the url is definitely needed! It pins the request to the Public org regardless
+        of the viewer's Grafana session.  Without it, cross-site iframe requests
+        (e.g. from the OpenShift-deployed Safety Automation) otherwise had  their Grafana session cookie blocked
+        by SameSite policy → Grafana then falls back to anonymous  access which defaults to Main Org
+        (org 1) which then would lead annotations posted to Public org become invisible in the appliation.
+        Without any error. Without whatever. Just no annotations visible. This is a very nasty problem if
+        if happens. So always make sure to provide the orgid with the url. */}}
+        {{/* Finished run: refresh=1d — Grafana has no URL param to fully disable refresh. */}}
+        src="{{$grafanaURL}}/d/{{$grafanaDashboardUID}}/hoplon-resilience-dashboard?orgId={{$grafanaOrgID}}&kiosk&refresh=1d&from={{$grafanaFrom}}&to={{$grafanaTo}}&var-namespace={{$run.WorkloadNamespace}}&var-workload={{$run.WorkloadName}}"
+      {{end}}
+        width="100%"
+        height="800"
+        frameborder="0"
+        style="display:block;">
+      </iframe>
+    </div>
+  </div>
+</div>
+
+<br>
+
+<!-- Log window -->
+{{/* todo: add a second "K6 Output" tab here alongside "Execution Log".
+     The K6 log goroutine in PodKillAndStartScenario.go (StreamK6JobLogs) is already
+     written but commented out — it needs its own SSE endpoint to stream into.
+     A new HTTP handler alongside /api/runs/{id}/logs/stream is also needed.
+     See https://trello.com/c/WdKyM6v5 for design, screenshot, and full context.
+*/}}
+<div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+  <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+    <h2 class="text-base font-semibold text-gray-900">Execution Log</h2>
+    {{if $active}}<span class="text-xs text-blue-600 font-medium animate-pulse">● Live</span>{{end}}
+  </div>
+  <div id="log-container"
+       class="bg-gray-950 text-green-400 font-mono text-xs p-4 h-96 overflow-y-auto"
+       style="scroll-behavior: smooth;">
+    {{range $logs}}
+    <div class="flex gap-2 leading-5">
+      <span class="text-gray-500 shrink-0">{{.LogTimestamp.Format "15:04:05.000"}}</span>
+      <span class="shrink-0 {{if eq .LogLevel "ERROR"}}text-red-400{{else if eq .LogLevel "WARN"}}text-yellow-400{{else if eq .LogLevel "DEBUG"}}text-gray-500{{else}}text-green-400{{end}}">
+      [{{.LogLevel}}]
+      </span>
+      <span class="text-gray-200">{{.Message}}</span>
+    </div>
+    {{else}}
+    <div class="text-gray-600">Waiting for log output...</div>
+    {{end}}
+  </div>
+</div>
+
+
+<script>
+function toggleGrafanaFullscreen() {
+  const iframe = document.getElementById('grafana-iframe');
+  if (!document.fullscreenElement) {
+    iframe.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+document.addEventListener('fullscreenchange', function() {
+  const btn = document.getElementById('grafana-fullscreen-btn');
+  btn.textContent = document.fullscreenElement ? '✕ Exit Full Screen' : '⛶ Full Screen';
+});
+</script>
+
+{{if $active}}
+<script>
+(function() {
+  const container = document.getElementById('log-container');
+  const src = new EventSource('/api/runs/{{$run.ID}}/logs/stream');
+
+  src.onmessage = function(e) {
+    try {
+      const entry = JSON.parse(e.data);
+      const line = document.createElement('div');
+      line.className = 'flex gap-2 leading-5';
+      const levelClass = entry.level === 'ERROR'           ? 'text-red-400' :
+                         entry.level === 'WARN'            ? 'text-yellow-400' :
+                         entry.level === 'DEBUG'           ? 'text-gray-500' :
+                         entry.level === 'VERDICT_PASS'    ? 'text-green-300 font-bold' :
+                         entry.level === 'VERDICT_DEGRADED'? 'text-yellow-300 font-bold' :
+                         entry.level === 'VERDICT_FAIL'    ? 'text-red-300 font-bold' : 'text-green-400';
+      line.innerHTML = '<span class="text-gray-500 shrink-0">' + entry.ts + '</span>' +
+                       '<span class="shrink-0 ' + levelClass + '">[' + entry.level + ']</span>' +
+                       '<span class="text-gray-200">' + entry.message + '</span>';
+      // Check before appending — appendChild changes scrollHeight.
+      // 4px threshold absorbs subpixel rounding so a user who never touched
+      // the scroll bar is always considered "at bottom".
+      const atBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 4;
+      container.appendChild(line);
+      if (atBottom) container.scrollTop = container.scrollHeight;
+    } catch(err) {}
+  };
+
+  src.addEventListener('done', function() {
+    src.close();
+    setTimeout(() => window.location.reload(), 1000);
+  });
+
+  src.onerror = function() {
+    // Do not close or reload the page. EventSource auto-reconnects after a
+    // transient error (e.g. HAProxy timeout cutting the SSE connection).
+    // If the run finished while disconnected, the reconnected stream sends
+    // event:done immediately and the page reloads then — no iframe flicker.
+  };
+})();
+</script>
+{{end}}
+{{end}}

@@ -1,0 +1,13 @@
+
+
+Enable Sidecar Injection
+
+Label namespace:
+
+oc label namespace hoplon-service-mesh istio-injection=enabled
+
+Restart pods:
+
+oc delete pod -n hoplon-service-mesh --all
+
+Now every pod gets an Envoy sidecar automatically.

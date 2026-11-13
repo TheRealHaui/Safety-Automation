@@ -1,0 +1,12 @@
+{{/*
+Pre-install validations. This file produces no Kubernetes manifest — Helm renders
+it only for its side effects (fail calls). Empty output is silently ignored by Helm.
+
+Pull-secret check: only enforced when image.repository still points to the default
+DynaCov GAR registry. Air-gapped or mirror installs that override image.repository
+manage their own registry authentication and are exempt from this check.
+*/}}
+{{- $defaultRepo := "europe-west6-docker.pkg.dev/automation-safety-485518/dynacov-safety-automation/container" -}}
+{{- if and (eq .Values.image.repository $defaultRepo) (eq (len .Values.image.pullSecrets) 0) -}}
+{{- fail "\n\nERROR: image.pullSecrets is required when using the default DynaCov container registry.\n\nCreate a pull secret from your DynaCov license file (sa-key.json):\n\n  oc create secret docker-registry gar-pull-secret \\\n    --docker-server=europe-west6-docker.pkg.dev \\\n    --docker-username=_json_key \\\n    --docker-password=\"$(cat sa-key.json)\" \\\n    -n <your-namespace>\n\nThen add to your Helm command:\n  --set image.pullSecrets[0].name=gar-pull-secret\n\nTo receive a free trial license (sa-key.json), register at:\n  https://www.safetyautomation.ai/contact\n\nAir-gapped / mirrored installations: override image.repository to your internal\nregistry mirror — the pull secret requirement is skipped automatically.\n" -}}
+{{- end -}}

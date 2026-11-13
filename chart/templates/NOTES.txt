@@ -1,0 +1,18 @@
+DynaCov Safety Automation has been deployed to namespace {{ .Release.Namespace }}.
+
+{{- if .Values.route.enabled }}
+Get the OpenShift Route URL:
+  oc get route {{ include "hoplon.fullname" . }} -n {{ .Release.Namespace }} -o jsonpath='{.spec.host}'
+{{- else }}
+No Route is enabled. Port-forward to access locally:
+  oc port-forward svc/{{ include "hoplon.fullname" . }} 8080:8080 -n {{ .Release.Namespace }}
+{{- end }}
+
+Check application logs:
+  oc logs -f deployment/{{ include "hoplon.fullname" . }} -n {{ .Release.Namespace }}
+
+Admin log page (startup diagnostics, connection status — admin login required):
+  <route-url>/admin/logs
+
+Check pod status:
+  oc get pods -l app.kubernetes.io/name={{ include "hoplon.name" . }} -n {{ .Release.Namespace }}

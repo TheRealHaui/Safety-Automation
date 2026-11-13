@@ -1,0 +1,57 @@
+{{define "admin_logs_template"}}
+{{template "base.html" .}}
+{{end}}
+
+{{define "title"}}Server Log – Safety Automation{{end}}
+
+{{define "content"}}
+<div class="space-y-4">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Server Log</h1>
+      <p class="mt-1 text-sm text-gray-500">
+        Current pod lifetime only (last {{len .Data}} lines). For historical entries use
+        <code class="bg-gray-100 px-1 rounded text-xs">oc logs</code>.
+      </p>
+    </div>
+    <a href="/admin/logs"
+       class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition">
+      Refresh
+    </a>
+  </div>
+
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+    <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+      <h2 class="text-base font-semibold text-gray-900">Application Log</h2>
+    </div>
+    <div class="bg-gray-950 text-green-400 font-mono text-xs p-4 overflow-y-auto" style="max-height: 70vh;">
+      {{if .Data}}
+        {{range .Data}}
+        <div class="log-line leading-5 whitespace-pre-wrap break-all">{{.}}</div>
+        {{end}}
+      {{else}}
+        <div class="text-gray-600">No log lines captured yet.</div>
+      {{end}}
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Color WARN lines yellow, ERROR/FATAL lines red; others stay green (inherited from parent).
+  document.querySelectorAll('.log-line').forEach(function(el) {
+    var t = el.textContent;
+    if (t.indexOf('ERROR') !== -1 || t.indexOf('FATAL') !== -1) {
+      el.classList.add('text-red-400');
+      el.classList.remove('text-green-400');
+    } else if (t.indexOf('WARN') !== -1) {
+      el.classList.add('text-yellow-400');
+      el.classList.remove('text-green-400');
+    }
+  });
+  // Scroll to bottom so the most recent lines are visible on load.
+  var container = document.querySelector('.bg-gray-950');
+  if (container) container.scrollTop = container.scrollHeight;
+</script>
+{{end}}

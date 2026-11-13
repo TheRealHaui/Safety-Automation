@@ -1,0 +1,130 @@
+{{define "deployments_template"}}
+{{template "base.html" .}}
+{{end}}
+
+{{define "title"}}Workloads – Safety Automation{{end}}
+
+{{define "content"}}
+<div class="space-y-4">
+  <!-- Page header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Workloads</h1>
+      <p class="text-sm text-gray-500 mt-0.5">
+        Namespace: <span class="font-mono text-gray-700">{{.Data.Namespace}}</span>
+        &nbsp;·&nbsp; {{.Data.TotalCount}} workload(s) found
+      </p>
+    </div>
+  </div>
+
+  <!-- Filters toolbar -->
+  <div class="bg-white border border-gray-200 rounded-xl p-4 flex flex-wrap gap-3 items-center"
+       hx-get="/workloads"
+       hx-trigger="input delay:300ms from:#search, change from:#only_with_runs, change from:#sort_by, change from:#sort_dir"
+       hx-target="#workloads-table"
+       hx-include="#filter-form"
+       hx-swap="outerHTML">
+
+    <form id="filter-form" class="contents">
+      <input type="hidden" name="page" value="1"/>
+
+      <input id="search" name="search" type="text"
+             value="{{.Data.Search}}"
+             placeholder="Search workloads…"
+             class="flex-1 min-w-48 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+
+      <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+        <input id="only_with_runs" name="only_with_runs" type="checkbox" value="1"
+               {{if .Data.OnlyWithRuns}}checked{{end}}
+               class="w-4 h-4 rounded border-gray-300 text-blue-600"/>
+        Only with test runs
+      </label>
+
+      <select id="sort_by" name="sort_by" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        <option value="name"     {{if eq .Data.SortBy "name"}}selected{{end}}>Sort: Name</option>
+        <option value="kind"     {{if eq .Data.SortBy "kind"}}selected{{end}}>Sort: Kind</option>
+        <option value="replicas" {{if eq .Data.SortBy "replicas"}}selected{{end}}>Sort: Replicas</option>
+      </select>
+
+      <select id="sort_dir" name="sort_dir" class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+        <option value="asc"  {{if eq .Data.SortDir "asc"}}selected{{end}}>↑ Asc</option>
+        <option value="desc" {{if eq .Data.SortDir "desc"}}selected{{end}}>↓ Desc</option>
+      </select>
+    </form>
+  </div>
+
+  <!-- Table -->
+  {{template "deployments_table_template" .Data}}
+</div>
+{{end}}
+
+{{define "deployments_table_template"}}
+<div id="workloads-table" class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+  <table class="min-w-full divide-y divide-gray-200 text-sm">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Name</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Kind</th>
+        <th class="px-4 py-3 text-center font-semibold text-gray-600">Replicas</th>
+        <th class="px-4 py-3 text-left font-semibold text-gray-600">Image</th>
+        <th class="px-4 py-3 text-center font-semibold text-gray-600">Has Runs</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {{range .Workloads}}
+      <tr class="hover:bg-blue-50 cursor-pointer transition"
+          onclick="window.location='/workloads/{{.Name}}?kind={{.Kind}}'">
+        <td class="px-4 py-3 font-mono font-medium text-blue-700">{{.Name}}</td>
+        <td class="px-4 py-3">
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+            {{if eq (print .Kind) "DeploymentConfig"}}bg-orange-100 text-orange-700{{else}}bg-blue-100 text-blue-700{{end}}">
+            {{.Kind}}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-center">
+          <span class="font-medium {{if gt .ReadyReplicas .Replicas}}text-yellow-600{{else if eq .ReadyReplicas .Replicas}}text-green-600{{else}}text-red-600{{end}}">
+            {{.ReadyReplicas}}/{{.Replicas}}
+          </span>
+        </td>
+        <td class="px-4 py-3 font-mono text-xs text-gray-500 max-w-xs truncate">{{.Image}}</td>
+        <td class="px-4 py-3 text-center">
+          {{$key := print .Name "|" .Namespace}}
+          {{if index $.WithRuns $key}}
+            <span class="text-green-500">✓</span>
+          {{else}}
+            <span class="text-gray-300">—</span>
+          {{end}}
+        </td>
+      </tr>
+      {{else}}
+      <tr>
+        {{if not .RemoteOpenShiftReached}}
+          <td colspan="5" class="px-4 py-8 text-center text-red-600 font-semibold">
+            Remote OpenShift instance either not reachable or namespace not set correctly - try again in a few minutes, then contact administrator
+          </td>
+        {{else}}
+          <td colspan="5" class="px-4 py-8 text-center text-gray-400">No workloads found.</td>
+        {{end}}
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <!-- Pagination -->
+  {{if gt .TotalPages 1}}
+  <div class="px-4 py-3 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-sm text-gray-600">
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.TotalCount}} total)</span>
+    <div class="flex gap-2">
+      {{if gt .Page 1}}
+      <a href="?page={{sub .Page 1}}&search={{.Search}}&sort_by={{.SortBy}}&sort_dir={{.SortDir}}&only_with_runs={{if .OnlyWithRuns}}1{{end}}"
+         class="px-3 py-1 rounded border border-gray-300 hover:bg-white transition">← Prev</a>
+      {{end}}
+      {{if lt .Page .TotalPages}}
+      <a href="?page={{add .Page 1}}&search={{.Search}}&sort_by={{.SortBy}}&sort_dir={{.SortDir}}&only_with_runs={{if .OnlyWithRuns}}1{{end}}"
+         class="px-3 py-1 rounded border border-gray-300 hover:bg-white transition">Next →</a>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+</div>
+{{end}}

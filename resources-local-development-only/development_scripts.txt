@@ -1,0 +1,115 @@
+
+BEGIN
+  FOR t IN (
+    SELECT table_name
+    FROM user_tables
+  ) LOOP
+    EXECUTE IMMEDIATE 'DROP TABLE "' || t.table_name || '" CASCADE CONSTRAINTS PURGE';
+  END LOOP;
+END;
+/
+
+
+-------------------------------------------------------------------------------------
+
+
+
+//Insert several
+//times paging
+INSERT INTO DEVUSER.TEST_RUN (
+    SCENARIO_TYPE_ID,
+    WORKLOAD_NAME,
+    WORKLOAD_NAMESPACE,
+    WORKLOAD_KIND,
+    STARTED_BY_APPLICATION_USER_ID,
+    STARTED_AT,
+    FINISHED_AT,
+    STATUS,
+    RESULT_SUMMARY
+) VALUES (
+    1,
+    'orders-service',
+    'not-existing-workspace',
+    'Deployment',
+    1,
+    SYSTIMESTAMP,
+    NULL,
+    'PENDING',
+    'Test run created, waiting for execution.'
+)
+/
+INSERT INTO DEVUSER.TEST_RUN (
+    SCENARIO_TYPE_ID,
+    WORKLOAD_NAME,
+    WORKLOAD_NAMESPACE,
+    WORKLOAD_KIND,
+    STARTED_BY_APPLICATION_USER_ID,
+    STARTED_AT,
+    FINISHED_AT,
+    STATUS,
+    RESULT_SUMMARY
+) VALUES (
+    1,
+    'payments-service',
+    'michael-hausegger-dev',
+    'StatefulSet',
+    1,
+    SYSTIMESTAMP - INTERVAL '15' MINUTE,
+    SYSTIMESTAMP - INTERVAL '5' MINUTE,
+    'SUCCESS',
+    'All resilience tests passed successfully.'
+)
+/
+INSERT INTO DEVUSER.TEST_RUN (
+    SCENARIO_TYPE_ID,
+    WORKLOAD_NAME,
+    WORKLOAD_NAMESPACE,
+    WORKLOAD_KIND,
+    STARTED_BY_APPLICATION_USER_ID,
+    STARTED_AT,
+    FINISHED_AT,
+    STATUS,
+    RESULT_SUMMARY
+) VALUES (
+    2,
+    'inventory-service',
+    'michael-hausegger-dev',
+    'Deployment',
+    1,
+    SYSTIMESTAMP - INTERVAL '5' MINUTE,
+    NULL,
+    'RUNNING',
+    'Currently executing chaos scenario step 3 of 5.'
+)
+/
+INSERT INTO DEVUSER.TEST_RUN (
+    SCENARIO_TYPE_ID,
+    WORKLOAD_NAME,
+    WORKLOAD_NAMESPACE,
+    WORKLOAD_KIND,
+    STARTED_BY_APPLICATION_USER_ID,
+    STARTED_AT,
+    FINISHED_AT,
+    STATUS,
+    RESULT_SUMMARY
+) VALUES (
+    3,
+    'Mojo',
+    'invented-namespace',
+    'Mojo',
+    1,
+    SYSTIMESTAMP - INTERVAL '10' MINUTE,
+    NULL,
+    'FAIL',
+    'We failed.'
+)
+
+/
+commit
+/
+
+-------------------------------------------------------------------------------------
+
+
+-------------------------------------------------------------------------------------
+

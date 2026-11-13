@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hoplon.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hoplon.labels" . | nindent 4 }}
+data:
+  # Non-sensitive application configuration.
+  # All keys are injected as environment variables into the pod via envFrom in deployment.yaml.
+  # Locked by the vendor — not customer-configurable.
+
+  # The version of DynaCov Safety Automation
+  # Read automatically from Chart.yaml
+  APP_VERSION:         {{ .Chart.AppVersion | quote }}
+  APP_PORT:            "8080"
+  K6_IMAGE:            "grafana/k6:latest"
+  # Locked by the vendor — not customer-configurable.
+  MAX_PARALLEL_TESTS:  "1"
+  # Customer-tunable capacity knob.
+  K6_TIMEOUT_SECONDS:  {{ .Values.app.k6TimeoutSeconds | quote }}
+  {{- if .Values.app.kubeconfigPath }}
+  KUBECONFIG_PATH:     {{ .Values.app.kubeconfigPath | quote }}
+  {{- end }}
+  # Required — DynaCov Safety Automation will not post annotations or render the metrics iframe without these.
+  GRAFANA_URL:           {{ required "grafana.url is required" .Values.grafana.url | quote }}
+  GRAFANA_PROMETHEUS_DATASOURCE_UID: {{ required "grafana.prometheusDatasourceUid is required" .Values.grafana.prometheusDatasourceUid | quote }}
+  # Disable TLS verification for dev environments with self-signed cluster CAs. Must never be true in production.
+  GRAFANA_SKIP_TLS_VERIFY: {{ .Values.grafana.skipTLSVerify | default "false" | quote }}

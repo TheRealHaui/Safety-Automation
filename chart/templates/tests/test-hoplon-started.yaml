@@ -1,0 +1,63 @@
+# Helm test — post-install smoke test for DynaCov Safety Automation.
+#
+# PURPOSE
+# This file exists for two reasons:
+#
+# 1. Red Hat chart-verifier certification requires at least one Helm test to be
+#    present in the chart (check: v1.0/contains-test). Without this file that
+#    check fails and the chart cannot be submitted to the Red Hat Marketplace.
+#
+# 2. After deploying to any cluster you can run:
+#      helm test hoplon -n <namespace>
+#    Helm will spin up this Pod, wait for it to exit, and report PASS or FAIL
+#    based on the exit code — a quick confirmation that the app is up and
+#    responding without having to check logs or hit the URL manually.
+#
+# HOW IT WORKS
+# The annotation "helm.sh/hook: test" tells Helm to treat this Pod as a test,
+# not a regular workload. It is never created during helm install / helm upgrade
+# — only when "helm test" is explicitly invoked.
+#
+# The Pod runs curl against DynaCov Safety Automation's root URL via the in-cluster Service DNS name.
+# curl --fail exits with a non-zero code if the HTTP response is not 2xx, which
+# Helm interprets as a test failure.
+#
+# "helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded" means:
+#   - before-hook-creation: delete any leftover Pod from a previous test run
+#     before creating a new one (avoids "already exists" errors on re-runs).
+#   - hook-succeeded: delete the Pod automatically after a successful run to
+#     keep the namespace clean. Failed Pods are kept so you can inspect logs.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "hoplon.fullname" . }}-test-connection"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hoplon.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: test-connection
+      # ubi9/ubi-minimal is a Red Hat certified base image — required because
+      # chart-verifier also checks that all images in the chart are certified.
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      command:
+        - curl
+        - --silent   # no progress meter in logs
+        - --fail     # non-zero exit code on HTTP 4xx/5xx → Helm marks test as failed
+        - --max-time
+        - "10"       # give the app 10 seconds to respond before timing out
+        - "http://{{ include "hoplon.fullname" . }}.{{ .Release.Namespace }}.svc:8080/"
